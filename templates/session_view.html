@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="session-container">
+    <h2>📸 {{ session.name }}</h2>
+    <p class="session-info">Created by {{ session.created_by_name }} • {{ session.duration_hours }} hours</p>
+    
+    <div class="current-challenge">
+        <h3>Current Challenge (Hour {{ current_challenge_hour }}):</h3>
+        {% for challenge in challenges %}
+            {% if challenge.hour == current_challenge_hour %}
+                <div class="challenge-active">
+                    <h4>{{ challenge.title }}</h4>
+                    <p>{{ challenge.description }}</p>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="upcoming-challenges">
+        <h3>All Challenges:</h3>
+        {% for challenge in challenges %}
+            <div class="challenge-item {% if challenge.hour == current_challenge_hour %}active{% elif challenge.hour < current_challenge_hour %}completed{% endif %}">
+                <span class="challenge-number">{{ challenge.hour }}</span>
+                <div class="challenge-content">
+                    <h4>{{ challenge.title }}</h4>
+                    <p>{{ challenge.description }}</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <div class="session-actions">
+        <a href="#" class="btn btn-primary">📷 Upload Photos</a>
+        <a href="#" class="btn btn-secondary">👥 Compare & Vote</a>
+    </div>
+</div>
+{% endblock %}

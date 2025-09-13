@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="home-container">
+    <h2>Welcome to Photo Challenge!</h2>
+    
+    <div class="actions">
+        <a href="{{ url_for('create_session') }}" class="btn btn-primary">
+            🎯 Create New Adventure
+        </a>
+        <a href="{{ url_for('join_session') }}" class="btn btn-secondary">
+            🤝 Join Adventure
+        </a>
+    </div>
+
+    <div class="recent-sessions">
+        <h3>Your Recent Adventures</h3>
+        <!-- We'll populate this later -->
+        <p>No adventures yet - create your first one!</p>
+    </div>
+</div>
+{% endblock %}
