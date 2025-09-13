@@ -229,3 +229,186 @@ main {
     margin-top: 2rem;
     text-align: center;
 }
+
+/* Photo Upload Styles */
+.upload-container, .categorize-container {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.upload-info, .categorize-info {
+    color: #7f8c8d;
+    margin-bottom: 1.5rem;
+}
+
+.upload-instructions {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin-bottom: 2rem;
+}
+
+.upload-instructions ol {
+    margin-left: 1.5rem;
+}
+
+.file-upload-area {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.file-upload-area input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.file-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    border: 2px dashed #bdc3c7;
+    border-radius: 8px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-upload-label:hover {
+    border-color: #3498db;
+    background: #ebf3fd;
+}
+
+.upload-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.upload-text {
+    text-align: center;
+    color: #2c3e50;
+}
+
+.upload-preview {
+    margin-bottom: 2rem;
+}
+
+.upload-preview h4 {
+    margin-bottom: 1rem;
+}
+
+#preview-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.preview-image {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid #ecf0f1;
+}
+
+.more-photos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 120px;
+    background: #ecf0f1;
+    border-radius: 6px;
+    color: #7f8c8d;
+    font-weight: bold;
+}
+
+/* Photo Categorization Styles */
+.categorize-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.photo-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.photo-preview {
+    margin-bottom: 1rem;
+}
+
+.photo-img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.photo-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.challenge-select {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.categorize-actions, .form-actions {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.no-photos, .all-done {
+    text-align: center;
+    padding: 3rem;
+    color: #7f8c8d;
+}
+
+.all-done {
+    background: #d4edda;
+    color: #155724;
+    border-radius: 8px;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.8); }
+}
+
+/* Mobile responsiveness for photos */
+@media (max-width: 768px) {
+    .categorize-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    #preview-images {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    }
+    
+    .preview-image, .more-photos {
+        width: 80px;
+        height: 80px;
+    }
+}

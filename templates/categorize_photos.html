@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Categorize Photos - {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="categorize-container">
+    <h2>🏷️ Categorize Your Photos</h2>
+    <p class="categorize-info">Assign each photo to its challenge</p>
+    
+    {% if photos %}
+        <div class="categorize-grid">
+            {% for photo in photos %}
+                <div class="photo-card" data-photo-id="{{ photo._id }}">
+                    <div class="photo-preview">
+                        <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                             alt="Photo" class="photo-img">
+                    </div>
+                    
+                    <div class="photo-controls">
+                        <select class="challenge-select" data-photo-id="{{ photo._id }}">
+                            <option value="">Select Challenge...</option>
+                            {% for challenge in challenges %}
+                                <option value="{{ challenge._id }}">
+                                    {{ challenge.hour }}. {{ challenge.title }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button class="assign-btn btn btn-small" disabled 
+                                onclick="assignPhoto('{{ photo._id }}', this)">
+                            Assign
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="categorize-actions">
+            <button id="finish-btn" class="btn btn-primary" style="display: none;">
+                Finish Categorizing
+            </button>
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
+                Back to Adventure
+            </a>
+        </div>
+    {% else %}
+        <div class="no-photos">
+            <p>No photos to categorize! All your photos have been assigned.</p>
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-primary">
+                Back to Adventure
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Enable assign button when challenge is selected
+document.querySelectorAll('.challenge-select').forEach(select => {
+    select.addEventListener('change', function() {
+        const photoId = this.dataset.photoId;
+        const assignBtn = this.parentElement.querySelector('.assign-btn');
+        assignBtn.disabled = !this.value;
+    });
+});
+
+function assignPhoto(photoId, button) {
+    const select = button.parentElement.querySelector('.challenge-select');
+    const challengeId = select.value;
+    
+    if (!challengeId) return;
+    
+    fetch('/assign-photo', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `photo_id=${photoId}&challenge_id=${challengeId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove this photo card
+            const photoCard = button.closest('.photo-card');
+            photoCard.style.animation = 'fadeOut 0.3s';
+            setTimeout(() => {
+                photoCard.remove();
+                checkIfAllAssigned();
+            }, 300);
+        }
+    });
+}
+
+function checkIfAllAssigned() {
+    const remainingPhotos = document.querySelectorAll('.photo-card').length;
+    if (remainingPhotos === 0) {
+        document.getElementById('finish-btn').style.display = 'block';
+        document.querySelector('.categorize-grid').innerHTML = 
+            '<div class="all-done"><h3>🎉 All photos categorized!</h3></div>';
+    }
+}
+
+document.getElementById('finish-btn')?.addEventListener('click', function() {
+    window.location.href = "{{ url_for('session_view', session_id=session_id) }}";
+});
+</script>
+{% endblock %}

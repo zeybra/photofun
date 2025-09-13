@@ -31,9 +31,8 @@
             </div>
         {% endfor %}
     </div>
-    
     <div class="session-actions">
-        <a href="#" class="btn btn-primary">📷 Upload Photos</a>
+        <a href="{{ url_for('upload_photos', session_id=session_id) }}" class="btn btn-primary">📷 Upload Photos</a>
         <a href="#" class="btn btn-secondary">👥 Compare & Vote</a>
     </div>
 </div>

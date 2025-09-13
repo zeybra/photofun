@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_pymongo import PyMongo
 from datetime import datetime, timedelta
-import os
 from werkzeug.utils import secure_filename
 from bson.objectid import ObjectId
+import os
 import uuid
+import time
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-later'  # Change this!
@@ -105,6 +106,88 @@ def session_view(session_id):
                          challenges=challenges,
                          current_challenge_hour=current_challenge_hour,
                          session_id=session_id)
+
+@app.route('/session/<session_id>/upload', methods=['GET', 'POST'])
+def upload_photos(session_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    if not session_doc:
+        flash('Adventure not found!')
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        if 'photos' not in request.files:
+            flash('No photos selected!')
+            return redirect(request.url)
+        
+        files = request.files.getlist('photos')
+        uploaded_count = 0
+        
+        for file in files:
+            if file and file.filename != '':
+                # Create unique filename
+                timestamp = str(int(time.time()))
+                filename = secure_filename(f"{timestamp}_{session['username']}_{file.filename}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                
+                # Save to database
+                photo_doc = {
+                    'session_id': session_id,
+                    'uploader_id': session['user_id'],
+                    'uploader_name': session['username'],
+                    'filename': filename,
+                    'challenge_id': None,  # Will be assigned later
+                    'uploaded_at': datetime.now()
+                }
+                mongo.db.photos.insert_one(photo_doc)
+                uploaded_count += 1
+        
+        flash(f'Successfully uploaded {uploaded_count} photos!')
+        return redirect(url_for('categorize_photos', session_id=session_id))
+    
+    # Get challenges for this session
+    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    
+    return render_template('upload_photos.html', 
+                         session=session_doc, 
+                         challenges=challenges,
+                         session_id=session_id)
+
+@app.route('/session/<session_id>/categorize')
+def categorize_photos(session_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get uncategorized photos for current user
+    photos = list(mongo.db.photos.find({
+        'session_id': session_id,
+        'uploader_id': session['user_id'],
+        'challenge_id': None
+    }))
+    
+    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    
+    return render_template('categorize_photos.html',
+                         photos=photos,
+                         challenges=challenges,
+                         session=session_doc,
+                         session_id=session_id)
+
+@app.route('/assign-photo', methods=['POST'])
+def assign_photo():
+    photo_id = request.form['photo_id']
+    challenge_id = request.form['challenge_id']
+    
+    mongo.db.photos.update_one(
+        {'_id': ObjectId(photo_id)},
+        {'$set': {'challenge_id': challenge_id}}
+    )
+    
+    return jsonify({'success': True})
 
 def create_default_challenges(session_id, duration_hours):
     """Create default Prague challenges"""

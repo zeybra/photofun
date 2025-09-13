@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Photos - {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <h2>📷 Upload Your Photos</h2>
+    <p class="upload-info">Adventure: <strong>{{ session.name }}</strong></p>
+    
+    <div class="upload-instructions">
+        <h3>How it works:</h3>
+        <ol>
+            <li>Upload all your photos from the adventure</li>
+            <li>We'll help you categorize them by challenge</li>
+            <li>Then you can compare and vote together!</li>
+        </ol>
+    </div>
+    
+    <form method="POST" enctype="multipart/form-data" class="upload-form">
+        <div class="file-upload-area">
+            <input type="file" id="photos" name="photos" multiple accept="image/*" required>
+            <label for="photos" class="file-upload-label">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    <strong>Choose photos</strong> or drag them here
+                    <br><small>Select multiple photos from your adventure</small>
+                </div>
+            </label>
+        </div>
+        
+        <div class="upload-preview" id="preview-container" style="display: none;">
+            <h4>Selected Photos:</h4>
+            <div id="preview-images"></div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="upload-btn" disabled>
+                Upload Photos
+            </button>
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
+                Back to Adventure
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.getElementById('photos').addEventListener('change', function(e) {
+    const files = e.target.files;
+    const previewContainer = document.getElementById('preview-container');
+    const previewImages = document.getElementById('preview-images');
+    const uploadBtn = document.getElementById('upload-btn');
+    
+    if (files.length > 0) {
+        previewContainer.style.display = 'block';
+        previewImages.innerHTML = '';
+        uploadBtn.disabled = false;
+        
+        // Show first 6 images as preview
+        for (let i = 0; i < Math.min(files.length, 6); i++) {
+            const file = files[i];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview-image';
+                previewImages.appendChild(img);
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        if (files.length > 6) {
+            const moreDiv = document.createElement('div');
+            moreDiv.className = 'more-photos';
+            moreDiv.textContent = `+${files.length - 6} more photos`;
+            previewImages.appendChild(moreDiv);
+        }
+    } else {
+        previewContainer.style.display = 'none';
+        uploadBtn.disabled = true;
+    }
+});
+</script>
+{% endblock %}
