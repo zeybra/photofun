@@ -189,6 +189,102 @@ def assign_photo():
     
     return jsonify({'success': True})
 
+# Add this route after your existing routes
+
+@app.route('/session/<session_id>/compare')
+def compare_photos(session_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    if not session_doc:
+        flash('Adventure not found!')
+        return redirect(url_for('home'))
+    
+    # Get all challenges with their photos
+    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    
+    # Get all photos for this session, grouped by challenge
+    challenge_photos = {}
+    for challenge in challenges:
+        photos = list(mongo.db.photos.find({
+            'session_id': session_id,
+            'challenge_id': str(challenge['_id'])
+        }))
+        challenge_photos[str(challenge['_id'])] = photos
+    
+    return render_template('compare_photos.html',
+                         session=session_doc,
+                         challenges=challenges,
+                         challenge_photos=challenge_photos,
+                         session_id=session_id)
+
+@app.route('/vote', methods=['POST'])
+def vote_photo():
+    photo_id = request.form['photo_id']
+    rating = int(request.form['rating'])
+    voter_id = session['user_id']
+    
+    # Remove any existing vote from this user for this photo
+    mongo.db.votes.delete_many({
+        'photo_id': photo_id,
+        'voter_id': voter_id
+    })
+    
+    # Add new vote
+    vote_doc = {
+        'photo_id': photo_id,
+        'voter_id': voter_id,
+        'voter_name': session['username'],
+        'rating': rating,
+        'voted_at': datetime.now()
+    }
+    mongo.db.votes.insert_one(vote_doc)
+    
+    # Calculate average rating for this photo
+    votes = list(mongo.db.votes.find({'photo_id': photo_id}))
+    avg_rating = sum(vote['rating'] for vote in votes) / len(votes) if votes else 0
+    total_votes = len(votes)
+    
+    return jsonify({
+        'success': True,
+        'average_rating': round(avg_rating, 1),
+        'total_votes': total_votes
+    })
+
+@app.route('/session/<session_id>/results')
+def session_results(session_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    
+    # Get photos with their vote statistics
+    results = {}
+    for challenge in challenges:
+        photos = list(mongo.db.photos.find({
+            'session_id': session_id,
+            'challenge_id': str(challenge['_id'])
+        }))
+        
+        # Add vote stats to each photo
+        for photo in photos:
+            votes = list(mongo.db.votes.find({'photo_id': str(photo['_id'])}))
+            photo['avg_rating'] = sum(vote['rating'] for vote in votes) / len(votes) if votes else 0
+            photo['total_votes'] = len(votes)
+            photo['votes'] = votes
+        
+        # Sort photos by rating
+        photos.sort(key=lambda x: x['avg_rating'], reverse=True)
+        results[str(challenge['_id'])] = photos
+    
+    return render_template('session_results.html',
+                         session=session_doc,
+                         challenges=challenges,
+                         results=results,
+                         session_id=session_id)
+
 def create_default_challenges(session_id, duration_hours):
     """Create default Prague challenges"""
     prague_challenges = [

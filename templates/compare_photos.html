@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Photos - {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="compare-container">
+    <h2>👥 Compare & Vote Together</h2>
+    <p class="compare-info">Adventure: <strong>{{ session.name }}</strong></p>
+    
+    <div class="voting-instructions">
+        <p>🌟 Rate each photo from 1-5 stars based on how well it captures the challenge!</p>
+    </div>
+    
+    {% for challenge in challenges %}
+        {% set photos = challenge_photos[challenge._id|string] %}
+        {% if photos %}
+            <div class="challenge-section">
+                <h3 class="challenge-header">
+                    <span class="challenge-number">{{ challenge.hour }}</span>
+                    {{ challenge.title }}
+                </h3>
+                <p class="challenge-description">{{ challenge.description }}</p>
+                
+                <div class="photos-grid">
+                    {% for photo in photos %}
+                        <div class="photo-comparison-card" data-photo-id="{{ photo._id }}">
+                            <div class="photo-container">
+                                <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                                     alt="Photo by {{ photo.uploader_name }}" 
+                                     class="comparison-photo"
+                                     onclick="openPhotoModal('{{ url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')">
+                                <div class="photo-overlay">
+                                    <span class="photo-author">📸 {{ photo.uploader_name }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="voting-section">
+                                <div class="star-rating" data-photo-id="{{ photo._id }}">
+                                    {% for i in range(1, 6) %}
+                                        <span class="star" data-rating="{{ i }}" onclick="ratePhoto('{{ photo._id }}', {{ i }})">⭐</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="rating-display" id="rating-{{ photo._id }}">
+                                    <span class="avg-rating">Not rated yet</span>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div class="challenge-section no-photos">
+                <h3 class="challenge-header">
+                    <span class="challenge-number">{{ challenge.hour }}</span>
+                    {{ challenge.title }}
+                </h3>
+                <p class="no-photos-text">No photos uploaded for this challenge yet</p>
+            </div>
+        {% endif %}
+    {% endfor %}
+    
+    <div class="compare-actions">
+        <a href="{{ url_for('session_results', session_id=session_id) }}" class="btn btn-primary">
+            📊 View Results
+        </a>
+        <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
+            Back to Adventure
+        </a>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div id="photo-modal" class="modal" onclick="closePhotoModal()">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <img id="modal-image" src="" alt="">
+        <div class="modal-info">
+            <p id="modal-author"></p>
+            <p id="modal-challenge"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function ratePhoto(photoId, rating) {
+    // Update star display immediately
+    const starContainer = document.querySelector(`[data-photo-id="${photoId}"]`);
+    const stars = starContainer.querySelectorAll('.star');
+    
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('selected');
+        } else {
+            star.classList.remove('selected');
+        }
+    });
+    
+    // Send vote to server
+    fetch('/vote', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `photo_id=${photoId}&rating=${rating}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const ratingDisplay = document.getElementById(`rating-${photoId}`);
+            ratingDisplay.innerHTML = `
+                <span class="avg-rating">${data.average_rating}⭐ (${data.total_votes} votes)</span>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error voting:', error);
+        // Reset stars on error
+        stars.forEach(star => star.classList.remove('selected'));
+    });
+}
+
+function openPhotoModal(imageSrc, author, challenge) {
+    const modal = document.getElementById('photo-modal');
+    const modalImg = document.getElementById('modal-image');
+    const modalAuthor = document.getElementById('modal-author');
+    const modalChallenge = document.getElementById('modal-challenge');
+    
+    modal.style.display = 'block';
+    modalImg.src = imageSrc;
+    modalAuthor.textContent = `📸 Photo by ${author}`;
+    modalChallenge.textContent = `Challenge: ${challenge}`;
+}
+
+function closePhotoModal() {
+    document.getElementById('photo-modal').style.display = 'none';
+}
+
+// Load existing ratings on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // You could add AJAX calls here to load existing ratings
+    // For now, ratings will show after first vote
+});
+</script>
+{% endblock %}

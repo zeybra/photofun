@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Results - {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="results-container">
+    <h2>📊 Adventure Results</h2>
+    <p class="results-info">Final rankings for: <strong>{{ session.name }}</strong></p>
+    
+    <div class="results-summary">
+        <h3>🏆 Challenge Winners</h3>
+    </div>
+    
+    {% for challenge in challenges %}
+        {% set photos = results[challenge._id|string] %}
+        <div class="challenge-results">
+            <h3 class="challenge-header">
+                <span class="challenge-number">{{ challenge.hour }}</span>
+                {{ challenge.title }}
+            </h3>
+            <p class="challenge-description">{{ challenge.description }}</p>
+            
+            {% if photos %}
+                <div class="results-grid">
+                    {% for photo in photos %}
+                        <div class="result-card {% if loop.index == 1 %}winner{% elif loop.index == 2 %}second{% elif loop.index == 3 %}third{% endif %}">
+                            {% if loop.index <= 3 %}
+                                <div class="rank-badge">
+                                    {% if loop.index == 1 %}🥇
+                                    {% elif loop.index == 2 %}🥈
+                                    {% else %}🥉
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            
+                            <div class="result-photo">
+                                <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                                     alt="Photo by {{ photo.uploader_name }}"
+                                     onclick="openPhotoModal('{{ url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')">
+                            </div>
+                            
+                            <div class="result-info">
+                                <div class="photographer">📸 {{ photo.uploader_name }}</div>
+                                <div class="rating">
+                                    {% if photo.avg_rating > 0 %}
+                                        <span class="rating-score">{{ "%.1f"|format(photo.avg_rating) }}⭐</span>
+                                        <span class="vote-count">({{ photo.total_votes }} votes)</span>
+                                    {% else %}
+                                        <span class="no-rating">No votes yet</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="no-photos-text">No photos for this challenge</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+    
+    <div class="results-actions">
+        <a href="{{ url_for('compare_photos', session_id=session_id) }}" class="btn btn-primary">
+            👥 Back to Voting
+        </a>
+        <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
+            Back to Adventure
+        </a>
+        <button onclick="generateSummary()" class="btn btn-outline">
+            📱 Share Results
+        </button>
+    </div>
+</div>
+
+<!-- Reuse photo modal -->
+<div id="photo-modal" class="modal" onclick="closePhotoModal()">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <img id="modal-image" src="" alt="">
+        <div class="modal-info">
+            <p id="modal-author"></p>
+            <p id="modal-challenge"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openPhotoModal(imageSrc, author, challenge) {
+    const modal = document.getElementById('photo-modal');
+    const modalImg = document.getElementById('modal-image');
+    const modalAuthor = document.getElementById('modal-author');
+    const modalChallenge = document.getElementById('modal-challenge');
+    
+    modal.style.display = 'block';
+    modalImg.src = imageSrc;
+    modalAuthor.textContent = `📸 Photo by ${author}`;
+    modalChallenge.textContent = `Challenge: ${challenge}`;
+}
+
+function closePhotoModal() {
+    document.getElementById('photo-modal').style.display = 'none';
+}
+
+function generateSummary() {
+    alert('Feature coming soon: Generate a beautiful summary to share your Prague adventure!');
+}
+</script>
+{% endblock %}
