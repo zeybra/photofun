@@ -25,10 +25,10 @@
                     {% for photo in photos %}
                         <div class="photo-comparison-card" data-photo-id="{{ photo._id }}">
                             <div class="photo-container">
-                                <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                                <img src="{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}" 
                                      alt="Photo by {{ photo.uploader_name }}" 
                                      class="comparison-photo"
-                                     onclick="openPhotoModal('{{ url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')">
+                                     onclick="openPhotoModal('{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')")>
                                 <div class="photo-overlay">
                                     <span class="photo-author">📸 {{ photo.uploader_name }}</span>
                                 </div>

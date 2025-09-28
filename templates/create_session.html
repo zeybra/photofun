@@ -7,12 +7,23 @@
     <h2>🎯 Create New Photo Adventure</h2>
     
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="form-group">
             <label for="session_name">Adventure Name:</label>
             <input type="text" id="session_name" name="session_name" required 
                    placeholder="Prague Adventure" value="Prague Adventure">
         </div>
         
+        <div class="form-group">
+            <label for="challenge_set">Adventure Theme:</label>
+            <select id="challenge_set" name="challenge_set">
+                <option value="prague" selected>Prague Adventure</option>
+                <option value="stockholm">Stockholm Explorer</option>
+                <option value="rome">Roman Quest</option>
+                <option value="generic">Urban Explorer (Any City)</option>
+            </select>
+        </div>
+
         <div class="form-group">
             <label for="duration_hours">Duration (hours):</label>
             <select id="duration_hours" name="duration_hours">

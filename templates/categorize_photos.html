@@ -12,7 +12,7 @@
             {% for photo in photos %}
                 <div class="photo-card" data-photo-id="{{ photo._id }}">
                     <div class="photo-preview">
-                        <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                        <img src="{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}" 
                              alt="Photo" class="photo-img">
                     </div>
                     

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Download Originals - {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2>📥 Download Original Photos</h2>
+    <h3>{{ session.name }}</h3>
+    <p class="download-info">High-quality original photos from this adventure ({{ download_links|length }} photos)</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if download_links %}
+    <div class="download-actions">
+        <button onclick="downloadAllOriginals()" class="btn btn-primary">📦 Download All Photos</button>
+        <p class="download-hint">💡 Tip: This will download each photo individually. On mobile, long-press each link to save.</p>
+    </div>
+
+    <div class="download-list">
+        {% for link in download_links %}
+        <div class="download-item">
+            <div class="download-info">
+                <strong>{{ link.filename }}</strong><br>
+                <small>By {{ link.uploader }} • {{ link.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </div>
+            <a href="{{ link.url }}" download="{{ link.filename }}" class="btn btn-small download-btn" target="_blank">
+                💾 Download
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-photos">
+        <p>No photos have been uploaded to this session yet.</p>
+    </div>
+    {% endif %}
+
+    <div class="admin-actions">
+        <a href="{{ url_for('admin') }}" class="btn btn-secondary">← Back to Admin</a>
+        <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">View Session</a>
+    </div>
+</div>
+
+<style>
+.download-info {
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+.download-actions {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.download-hint {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+.download-list {
+    margin-bottom: 2rem;
+}
+
+.download-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.download-item .download-info {
+    flex-grow: 1;
+    margin: 0;
+    color: #333;
+}
+
+.download-btn {
+    background: #28a745;
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.download-btn:hover {
+    background: #218838;
+}
+
+.no-photos {
+    text-align: center;
+    padding: 3rem;
+    color: #7f8c8d;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .download-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+
+    .download-actions {
+        padding: 1rem;
+    }
+}
+</style>
+
+<script>
+function downloadAllOriginals() {
+    const downloadLinks = document.querySelectorAll('.download-btn');
+    let delay = 0;
+
+    downloadLinks.forEach((link, index) => {
+        setTimeout(() => {
+            // Create a temporary link element and click it
+            const tempLink = document.createElement('a');
+            tempLink.href = link.href;
+            tempLink.download = link.download;
+            tempLink.style.display = 'none';
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
+        }, delay);
+        delay += 1000; // 1 second delay between downloads
+    });
+
+    alert(`Starting download of ${downloadLinks.length} photos. They will download one by one to avoid browser limits.`);
+}
+</script>
+{% endblock %}

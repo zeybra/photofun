@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Challenge {{ challenge_index + 1 }} - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2>✏️ Edit Challenge {{ challenge_index + 1 }}</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="edit-challenge-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div class="form-group">
+            <label for="title">Challenge Title:</label>
+            <input type="text" id="title" name="title" value="{{ challenge.title }}" required maxlength="100">
+        </div>
+
+        <div class="form-group">
+            <label for="description">Challenge Description:</label>
+            <textarea id="description" name="description" required maxlength="500" rows="4">{{ challenge.description }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('admin_challenges', challenge_set=challenge_set) }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+
+    <div class="challenge-preview">
+        <h3>Preview:</h3>
+        <div class="preview-card">
+            <h4 id="preview-title">{{ challenge.title }}</h4>
+            <p id="preview-description">{{ challenge.description }}</p>
+        </div>
+    </div>
+</div>
+
+<style>
+.edit-challenge-form {
+    max-width: 600px;
+    margin-bottom: 30px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.challenge-preview {
+    max-width: 600px;
+    margin-top: 30px;
+}
+
+.preview-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    background: #f9f9f9;
+}
+
+.preview-card h4 {
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.preview-card p {
+    margin: 0;
+    color: #666;
+    line-height: 1.4;
+}
+</style>
+
+<script>
+// Live preview as user types
+document.getElementById('title').addEventListener('input', function() {
+    document.getElementById('preview-title').textContent = this.value || 'Challenge Title';
+});
+
+document.getElementById('description').addEventListener('input', function() {
+    document.getElementById('preview-description').textContent = this.value || 'Challenge description';
+});
+</script>
+{% endblock %}

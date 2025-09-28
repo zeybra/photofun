@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Manage {{ set_info.name }} - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2>🎯 Manage {{ set_info.name }}</h2>
+    <p>{{ set_info.description }}</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="challenges-grid">
+        {% for challenge in challenges %}
+        <div class="challenge-card">
+            <div class="challenge-header">
+                <h4>Challenge {{ loop.index }}: {{ challenge.title }}</h4>
+                <a href="{{ url_for('edit_challenge', challenge_set=challenge_set, challenge_index=loop.index0) }}" class="edit-btn">✏️ Edit</a>
+            </div>
+            <p class="challenge-desc">{{ challenge.description }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('admin') }}" class="btn btn-secondary">← Back to Admin</a>
+    </div>
+</div>
+
+<style>
+.challenges-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.challenge-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.challenge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.challenge-header h4 {
+    margin: 0;
+    color: #333;
+    flex-grow: 1;
+}
+
+.edit-btn {
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-left: 10px;
+}
+
+.edit-btn:hover {
+    background: #0056b3;
+}
+
+.challenge-desc {
+    color: #666;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.challenge-set-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    background: #28a745;
+    color: white;
+    text-decoration: none;
+    border-radius: 3px;
+}
+
+.btn-small:hover {
+    background: #218838;
+}
+</style>
+{% endblock %}

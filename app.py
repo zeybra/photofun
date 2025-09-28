@@ -1,24 +1,128 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_pymongo import PyMongo
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_bcrypt import Bcrypt
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from bson.objectid import ObjectId
+from models import User
+from challenges import create_challenges_for_session, get_available_sets, CHALLENGE_SETS
 import os
 import uuid
 import time
+from dotenv import load_dotenv
+from pywebpush import webpush, WebPushException
+import json
+import bleach
+import re
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+import requests
+import cloudinary
+import cloudinary.uploader
+
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-later'  # Change this!
-app.config["MONGO_URI"] = "mongodb://localhost:27017/photo_challenge"
+app.secret_key = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
+app.config["MONGO_URI"] = os.getenv('MONGO_URI', "mongodb://localhost:27017/photo_challenge")
+app.config['WTF_CSRF_ENABLED'] = True
+
+# Google OAuth config
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for development
+
+# Cloudinary configuration for photo storage
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
+)
+
+# Admin configuration
+ADMIN_EMAIL = 'johan.kire@gmail.com'
+
+# Initialize allowed emails from env (for first setup)
+def init_allowed_emails():
+    """Initialize allowed emails from env file if none exist in database"""
+    if mongo.db.allowed_emails.count_documents({}) == 0:
+        env_emails = os.getenv('ALLOWED_EMAILS', '').split(',')
+        env_emails = [email.strip().lower() for email in env_emails if email.strip()]
+
+        # Always ensure admin email is included
+        if ADMIN_EMAIL.lower() not in env_emails:
+            env_emails.append(ADMIN_EMAIL.lower())
+
+        for email in env_emails:
+            mongo.db.allowed_emails.insert_one({
+                'email': email,
+                'added_by': 'system',
+                'added_at': datetime.now()
+            })
+
+def get_allowed_emails():
+    """Get current list of allowed emails from database"""
+    return [doc['email'] for doc in mongo.db.allowed_emails.find()]
+
+def is_admin(email):
+    """Check if user is admin"""
+    return email.lower() == ADMIN_EMAIL.lower()
 
 # File upload config
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Security extensions
+csrf = CSRFProtect(app)
+bcrypt = Bcrypt(app)
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"]
+)
+
 mongo = PyMongo(app)
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Input validation helpers
+def sanitize_input(text, max_length=100):
+    """Sanitize and validate text input"""
+    if not text:
+        return ''
+    # Strip whitespace and limit length
+    text = str(text).strip()[:max_length]
+    # Remove any HTML/script tags
+    text = bleach.clean(text, tags=[], strip=True)
+    return text
+
+def validate_session_name(name):
+    """Validate session name"""
+    if not name or len(name.strip()) < 3:
+        return False, "Session name must be at least 3 characters long"
+    if len(name) > 50:
+        return False, "Session name too long (max 50 characters)"
+    # Allow alphanumeric, spaces, hyphens, underscores
+    if not re.match(r'^[a-zA-Z0-9\s\-_]+$', name):
+        return False, "Session name contains invalid characters"
+    return True, ""
+
+# Security headers
+@app.after_request
+def after_request(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    # Temporarily disable CSP for testing
+    # response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com"
+    return response
 
 @app.route('/')
 def home():
@@ -26,21 +130,236 @@ def home():
         return redirect(url_for('login'))
     return render_template('home.html')
 
-# Simple auth routes
-@app.route('/login', methods=['GET', 'POST'])
+# Google OAuth routes
+@app.route('/login')
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        if username:  # Super simple - just check if username exists
-            session['user_id'] = str(uuid.uuid4())  # Generate simple user ID
-            session['username'] = username
-            return redirect(url_for('home'))
-    return render_template('login.html')
+    if GOOGLE_CLIENT_ID:
+        return render_template('login.html', google_client_id=GOOGLE_CLIENT_ID)
+    else:
+        flash('Google OAuth not configured. Please set GOOGLE_CLIENT_ID in environment.')
+        return render_template('login.html')
+
+@app.route('/auth/google', methods=['POST'])
+@limiter.limit("10 per minute")
+@csrf.exempt
+def google_auth():
+    # Get the token from the request
+    token = request.json.get('credential')
+
+    if not token:
+        return jsonify({'error': 'No token provided'}), 400
+
+    try:
+        # Verify the token
+        idinfo = id_token.verify_oauth2_token(
+            token, google_requests.Request(), GOOGLE_CLIENT_ID)
+
+        # Get user info
+        email = idinfo['email']
+        name = idinfo['name']
+        google_id = idinfo['sub']
+
+        # Initialize allowed emails on first run
+        init_allowed_emails()
+
+        # Check if email is allowed
+        allowed_emails = get_allowed_emails()
+        if email.lower() not in allowed_emails:
+            return jsonify({'error': f'Access denied. {email} is not authorized to use this app.'}), 403
+
+        # Check if user exists
+        user_doc = mongo.db.users.find_one({'google_id': google_id})
+
+        if not user_doc:
+            # Create new user
+            user_doc = {
+                'google_id': google_id,
+                'email': email,
+                'name': name,
+                'username': name.split()[0] if name else email.split('@')[0],
+                'created_at': datetime.now()
+            }
+            result = mongo.db.users.insert_one(user_doc)
+            user_doc['_id'] = result.inserted_id
+
+        # Set session
+        session['user_id'] = str(user_doc['_id'])
+        session['username'] = user_doc['username']
+        session['email'] = user_doc['email']
+        session.permanent = True
+        app.permanent_session_lifetime = timedelta(hours=24)
+
+        return jsonify({'success': True, 'redirect': url_for('home')})
+
+    except ValueError as e:
+        return jsonify({'error': 'Invalid token'}), 400
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+# Admin routes
+@app.route('/admin')
+def admin():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if not is_admin(session.get('email', '')):
+        flash('Access denied. Admin only.')
+        return redirect(url_for('home'))
+
+    # Get all allowed emails and users
+    allowed_emails = list(mongo.db.allowed_emails.find().sort('added_at', -1))
+    users = list(mongo.db.users.find().sort('created_at', -1))
+
+    # Get available challenge sets
+    challenge_sets = get_available_sets()
+
+    return render_template('admin.html',
+                         allowed_emails=allowed_emails,
+                         users=users,
+                         challenge_sets=challenge_sets)
+
+@app.route('/admin/add-email', methods=['POST'])
+@limiter.limit("10 per minute")
+def add_allowed_email():
+    if 'user_id' not in session or not is_admin(session.get('email', '')):
+        return jsonify({'error': 'Access denied'}), 403
+
+    email = request.form.get('email', '').strip().lower()
+    if not email:
+        flash('Email address is required!')
+        return redirect(url_for('admin'))
+
+    # Validate email format
+    if '@' not in email or '.' not in email.split('@')[1]:
+        flash('Invalid email format!')
+        return redirect(url_for('admin'))
+
+    # Check if already exists
+    if mongo.db.allowed_emails.find_one({'email': email}):
+        flash(f'{email} is already in the allowed list!')
+        return redirect(url_for('admin'))
+
+    # Add to database
+    mongo.db.allowed_emails.insert_one({
+        'email': email,
+        'added_by': session['email'],
+        'added_at': datetime.now()
+    })
+
+    flash(f'Added {email} to allowed users!')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/remove-email', methods=['POST'])
+@limiter.limit("10 per minute")
+def remove_allowed_email():
+    if 'user_id' not in session or not is_admin(session.get('email', '')):
+        return jsonify({'error': 'Access denied'}), 403
+
+    email = request.form.get('email', '').strip().lower()
+
+    # Don't allow removing admin email
+    if email == ADMIN_EMAIL.lower():
+        flash('Cannot remove admin email!')
+        return redirect(url_for('admin'))
+
+    # Remove from database
+    result = mongo.db.allowed_emails.delete_one({'email': email})
+    if result.deleted_count > 0:
+        flash(f'Removed {email} from allowed users!')
+    else:
+        flash(f'{email} was not found in the allowed list!')
+
+    return redirect(url_for('admin'))
+
+@app.route('/admin/challenges/<challenge_set>')
+def admin_challenges(challenge_set):
+    if 'user_id' not in session or not is_admin(session.get('email', '')):
+        flash('Access denied. Admin only.')
+        return redirect(url_for('home'))
+
+    if challenge_set not in CHALLENGE_SETS:
+        flash('Challenge set not found!')
+        return redirect(url_for('admin'))
+
+    challenges = CHALLENGE_SETS[challenge_set]['challenges']
+    set_info = CHALLENGE_SETS[challenge_set]
+
+    return render_template('admin_challenges.html',
+                         challenge_set=challenge_set,
+                         set_info=set_info,
+                         challenges=challenges)
+
+@app.route('/admin/challenges/<challenge_set>/edit/<int:challenge_index>', methods=['GET', 'POST'])
+@limiter.limit("20 per minute")
+def edit_challenge(challenge_set, challenge_index):
+    if 'user_id' not in session or not is_admin(session.get('email', '')):
+        flash('Access denied. Admin only.')
+        return redirect(url_for('home'))
+
+    if challenge_set not in CHALLENGE_SETS:
+        flash('Challenge set not found!')
+        return redirect(url_for('admin'))
+
+    if challenge_index >= len(CHALLENGE_SETS[challenge_set]['challenges']):
+        flash('Challenge not found!')
+        return redirect(url_for('admin_challenges', challenge_set=challenge_set))
+
+    if request.method == 'POST':
+        title = sanitize_input(request.form.get('title', ''), 100)
+        description = sanitize_input(request.form.get('description', ''), 500)
+
+        if not title or not description:
+            flash('Title and description are required!')
+            return redirect(url_for('edit_challenge', challenge_set=challenge_set, challenge_index=challenge_index))
+
+        # Update the challenge in memory (this is temporary - in production you'd save to a file)
+        CHALLENGE_SETS[challenge_set]['challenges'][challenge_index] = {
+            'title': title,
+            'description': description
+        }
+
+        flash(f'Challenge {challenge_index + 1} updated successfully!')
+        return redirect(url_for('admin_challenges', challenge_set=challenge_set))
+
+    challenge = CHALLENGE_SETS[challenge_set]['challenges'][challenge_index]
+    return render_template('edit_challenge.html',
+                         challenge_set=challenge_set,
+                         challenge_index=challenge_index,
+                         challenge=challenge)
+
+@app.route('/admin/download-originals/<session_id>')
+def download_originals(session_id):
+    if 'user_id' not in session or not is_admin(session.get('email', '')):
+        flash('Access denied. Admin only.')
+        return redirect(url_for('home'))
+
+    # Get session info
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    if not session_doc:
+        flash('Session not found!')
+        return redirect(url_for('admin'))
+
+    # Get all photos for this session
+    photos = list(mongo.db.photos.find({'session_id': session_id}))
+
+    # Create download links for originals
+    download_links = []
+    for photo in photos:
+        if 'original_url' in photo:
+            download_links.append({
+                'filename': photo.get('original_filename', f"photo_{photo['_id']}.jpg"),
+                'url': photo['original_url'],
+                'uploader': photo['uploader_name'],
+                'uploaded_at': photo['uploaded_at']
+            })
+
+    return render_template('download_originals.html',
+                         session=session_doc,
+                         download_links=download_links,
+                         session_id=session_id)
 
 # Session management routes
 @app.route('/create-session', methods=['GET', 'POST'])
@@ -49,9 +368,21 @@ def create_session():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
-        session_name = request.form['session_name']
+        session_name = sanitize_input(request.form.get('session_name', ''), 50)
+
+        # Validate session name
+        is_valid, error_msg = validate_session_name(session_name)
+        if not is_valid:
+            flash(error_msg)
+            return render_template('create_session.html')
+
         start_time = datetime.now()  # Start immediately for now
-        duration_hours = int(request.form.get('duration_hours', 8))
+        try:
+            duration_hours = int(request.form.get('duration_hours', 8))
+            if duration_hours < 1 or duration_hours > 24:
+                duration_hours = 8
+        except ValueError:
+            duration_hours = 8
         
         # Create session in MongoDB
         session_doc = {
@@ -67,8 +398,9 @@ def create_session():
         result = mongo.db.sessions.insert_one(session_doc)
         session_id = str(result.inserted_id)
         
-        # Create default challenges for this session
-        create_default_challenges(session_id, duration_hours)
+        # Create challenges for this session
+        challenge_set = request.form.get('challenge_set', 'prague')
+        create_challenges_for_session(session_id, challenge_set, duration_hours)
         
         flash(f'Adventure "{session_name}" created successfully!')
         return redirect(url_for('session_view', session_id=session_id))
@@ -92,19 +424,21 @@ def session_view(session_id):
         flash('Adventure not found!')
         return redirect(url_for('home'))
     
-    # Get challenges for this session
-    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
-    
     # Calculate current challenge
     start_time = session_doc['start_time']
     current_time = datetime.now()
     hours_elapsed = (current_time - start_time).total_seconds() / 3600
     current_challenge_hour = int(hours_elapsed) + 1
-    
-    return render_template('session_view.html', 
-                         session=session_doc, 
-                         challenges=challenges,
+
+    # Get only current and past challenges (hide future ones for suspense!)
+    all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    visible_challenges = [c for c in all_challenges if c['hour'] <= current_challenge_hour]
+
+    return render_template('session_view.html',
+                         session=session_doc,
+                         challenges=visible_challenges,
                          current_challenge_hour=current_challenge_hour,
+                         total_challenges=len(all_challenges),
                          session_id=session_id)
 
 @app.route('/session/<session_id>/upload', methods=['GET', 'POST'])
@@ -127,29 +461,71 @@ def upload_photos(session_id):
         
         for file in files:
             if file and file.filename != '':
-                # Create unique filename
-                timestamp = str(int(time.time()))
-                filename = secure_filename(f"{timestamp}_{session['username']}_{file.filename}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                
-                # Save to database
-                photo_doc = {
-                    'session_id': session_id,
-                    'uploader_id': session['user_id'],
-                    'uploader_name': session['username'],
-                    'filename': filename,
-                    'challenge_id': None,  # Will be assigned later
-                    'uploaded_at': datetime.now()
-                }
-                mongo.db.photos.insert_one(photo_doc)
-                uploaded_count += 1
+                try:
+                    # Upload to Cloudinary instead of local storage
+                    timestamp = str(int(time.time()))
+                    public_id = f"photofun/{session_id}/{timestamp}_{session['username']}"
+
+                    # Upload original (full quality, no transformation)
+                    original_result = cloudinary.uploader.upload(
+                        file,
+                        public_id=f"{public_id}_original",
+                        folder="photofun/originals",
+                        resource_type="image"
+                    )
+
+                    # Upload display version (optimized for web)
+                    display_result = cloudinary.uploader.upload(
+                        file,
+                        public_id=public_id,
+                        folder="photofun",
+                        resource_type="image",
+                        transformation=[
+                            {'width': 1200, 'height': 1200, 'crop': 'limit'},
+                            {'quality': 'auto:good'}
+                        ]
+                    )
+
+                    # Save to database with both URLs
+                    photo_doc = {
+                        'session_id': session_id,
+                        'uploader_id': session['user_id'],
+                        'uploader_name': session['username'],
+                        'filename': display_result['public_id'],
+                        'url': display_result['secure_url'],           # Optimized for display
+                        'original_url': original_result['secure_url'], # Full quality original
+                        'original_filename': secure_filename(file.filename),
+                        'challenge_id': None,  # Will be assigned later
+                        'uploaded_at': datetime.now()
+                    }
+                    mongo.db.photos.insert_one(photo_doc)
+                    uploaded_count += 1
+
+                except Exception as e:
+                    print(f"Upload failed for {file.filename}: {e}")
+                    # Continue with other files
         
         flash(f'Successfully uploaded {uploaded_count} photos!')
+
+        # Send notification to other participants
+        session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+        if session_doc:
+            send_notification_to_session(
+                session_id,
+                f"New photos uploaded!",
+                f"{session['username']} uploaded {uploaded_count} photos to {session_doc['name']}",
+                exclude_user_id=session['user_id']
+            )
+
         return redirect(url_for('categorize_photos', session_id=session_id))
     
-    # Get challenges for this session
-    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    # Get only available challenges (current and past)
+    start_time = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})['start_time']
+    hours_elapsed = (datetime.now() - start_time).total_seconds() / 3600
+    current_challenge_hour = int(hours_elapsed) + 1
+
+    all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    challenges = [c for c in all_challenges if c['hour'] <= current_challenge_hour]
     
     return render_template('upload_photos.html', 
                          session=session_doc, 
@@ -168,8 +544,15 @@ def categorize_photos(session_id):
         'challenge_id': None
     }))
     
-    challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
     session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+
+    # Get only available challenges (current and past)
+    start_time = session_doc['start_time']
+    hours_elapsed = (datetime.now() - start_time).total_seconds() / 3600
+    current_challenge_hour = int(hours_elapsed) + 1
+
+    all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
+    challenges = [c for c in all_challenges if c['hour'] <= current_challenge_hour]
     
     return render_template('categorize_photos.html',
                          photos=photos,
@@ -285,32 +668,77 @@ def session_results(session_id):
                          results=results,
                          session_id=session_id)
 
-def create_default_challenges(session_id, duration_hours):
-    """Create default Prague challenges"""
-    prague_challenges = [
-        {"title": "Unique Czech Discovery", "description": "Find something uniquely Czech that tourists usually miss"},
-        {"title": "Castle View Alternative", "description": "Capture the best castle view that isn't the obvious tourist spot"}, 
-        {"title": "Old Meets New", "description": "Something that shows the contrast between old and new Prague"},
-        {"title": "Architectural Story", "description": "Find a door, window, or building detail that tells a story"},
-        {"title": "Hidden Street Art", "description": "Discover street art or graffiti that caught your eye"},
-        {"title": "Local Life", "description": "Capture a local person doing something traditionally Prague"},
-        {"title": "Fairy Tale Architecture", "description": "Architecture that looks like it belongs in a fairy tale"},
-        {"title": "Unexpected Perspective", "description": "A view or angle of Prague that surprises you"},
-        {"title": "Cultural Detail", "description": "A small detail that represents Czech culture"},
-        {"title": "Final Adventure", "description": "Your favorite discovery from the entire adventure"}
-    ]
-    
-    # Create challenges up to duration_hours
-    challenges_to_create = min(len(prague_challenges), duration_hours)
-    
-    for hour in range(1, challenges_to_create + 1):
-        challenge_doc = {
-            'session_id': session_id,
-            'hour': hour,
-            'title': prague_challenges[hour-1]['title'],
-            'description': prague_challenges[hour-1]['description']
+
+# Web Push Notification API Routes
+@app.route('/api/vapid-public-key')
+def vapid_public_key():
+    return jsonify({
+        'publicKey': os.getenv('VAPID_PUBLIC_KEY', 'BG1n8WOJOZgp4dALDNHFRVo9Xq8fWx2FxOOKtqp9w1LGJW8_M9vALJ5k2ZJL3cY1N5N5Y9Q1Q6qF8Q3F7N1S8N4')
+    })
+
+@app.route('/api/subscribe', methods=['POST'])
+@limiter.limit("10 per minute")
+def subscribe():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    subscription_data = request.get_json()
+
+    # Store subscription in database
+    subscription_doc = {
+        'user_id': session['user_id'],
+        'username': session['username'],
+        'subscription': subscription_data,
+        'created_at': datetime.now()
+    }
+
+    # Remove any existing subscription for this user
+    mongo.db.subscriptions.delete_many({'user_id': session['user_id']})
+    mongo.db.subscriptions.insert_one(subscription_doc)
+
+    return jsonify({'success': True})
+
+def send_notification_to_user(user_id, title, body, data=None):
+    """Send push notification to a specific user"""
+    try:
+        subscription_doc = mongo.db.subscriptions.find_one({'user_id': user_id})
+        if not subscription_doc:
+            return False
+
+        payload = {
+            'title': title,
+            'body': body,
+            'primaryKey': data.get('primary_key', 1) if data else 1
         }
-        mongo.db.challenges.insert_one(challenge_doc)
+
+        webpush(
+            subscription_info=subscription_doc['subscription'],
+            data=json.dumps(payload),
+            vapid_private_key=os.getenv('VAPID_PRIVATE_KEY'),
+            vapid_claims={
+                "sub": os.getenv('VAPID_EMAIL', 'mailto:your-email@example.com')
+            }
+        )
+        return True
+    except WebPushException as ex:
+        print(f"Push notification failed: {ex}")
+        return False
+
+def send_notification_to_session(session_id, title, body, exclude_user_id=None):
+    """Send push notification to all users in a session"""
+    try:
+        # Get all participants in the session
+        session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+        if not session_doc:
+            return
+
+        participants = session_doc.get('participants', [])
+        for participant_id in participants:
+            if exclude_user_id and participant_id == exclude_user_id:
+                continue
+            send_notification_to_user(participant_id, title, body)
+    except Exception as ex:
+        print(f"Session notification failed: {ex}")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host="localhost", port=8080, threaded=True)

@@ -34,9 +34,9 @@
                             {% endif %}
                             
                             <div class="result-photo">
-                                <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" 
+                                <img src="{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}" 
                                      alt="Photo by {{ photo.uploader_name }}"
-                                     onclick="openPhotoModal('{{ url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')">
+                                     onclick="openPhotoModal('{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}', '{{ photo.uploader_name }}', '{{ challenge.title }}')")>
                             </div>
                             
                             <div class="result-info">
@@ -60,6 +60,9 @@
     {% endfor %}
     
     <div class="results-actions">
+        {% if session.email == 'johan.kire@gmail.com' %}
+            <a href="{{ url_for('download_originals', session_id=session_id) }}" class="btn btn-outline">📥 Download Originals</a>
+        {% endif %}
         <a href="{{ url_for('compare_photos', session_id=session_id) }}" class="btn btn-primary">
             👥 Back to Voting
         </a>

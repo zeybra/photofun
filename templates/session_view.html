@@ -20,7 +20,10 @@
     </div>
     
     <div class="upcoming-challenges">
-        <h3>All Challenges:</h3>
+        <h3>Available Challenges ({{ challenges|length }}/{{ total_challenges }}):</h3>
+        {% if challenges|length < total_challenges %}
+            <p class="mystery-hint">🔮 More challenges will unlock as time progresses...</p>
+        {% endif %}
         {% for challenge in challenges %}
             <div class="challenge-item {% if challenge.hour == current_challenge_hour %}active{% elif challenge.hour < current_challenge_hour %}completed{% endif %}">
                 <span class="challenge-number">{{ challenge.hour }}</span>
@@ -35,6 +38,19 @@
         <a href="{{ url_for('upload_photos', session_id=session_id) }}" class="btn btn-primary">📷 Upload Photos</a>
         <a href="{{ url_for('compare_photos', session_id=session_id) }}" class="btn btn-secondary">👥 Compare & Vote</a>
         <a href="{{ url_for('session_results', session_id=session_id) }}" class="btn btn-outline">📊 Results</a>
-    </div>  
+    </div>
 </div>
+
+<style>
+.mystery-hint {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 10px 0;
+    text-align: center;
+    font-style: italic;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}

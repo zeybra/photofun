@@ -5,14 +5,67 @@
 {% block content %}
 <div class="login-container">
     <h2>Join Photo Challenge</h2>
-    <form method="POST">
-        <div class="form-group">
-            <label for="username">Your Name:</label>
-            <input type="text" id="username" name="username" required 
-                   placeholder="Enter your name">
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flashes">
+            {% for message in messages %}
+                <li>{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {% if google_client_id %}
+    <div class="google-signin-container">
+        <p>Sign in with your Google account to get started:</p>
+        <div id="g_id_onload"
+             data-client_id="{{ google_client_id }}"
+             data-context="signin"
+             data-ux_mode="popup"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
         </div>
-        <button type="submit">Start Adventure!</button>
-    </form>
-    <p class="hint">Just enter any name to start - this is temporary auth for the weekend!</p>
+
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signin_with"
+             data-size="large"
+             data-logo_alignment="left">
+        </div>
+    </div>
+    {% else %}
+    <p>Google OAuth not configured. Please contact administrator.</p>
+    {% endif %}
 </div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+async function handleCredentialResponse(response) {
+    try {
+        const result = await fetch('/auth/google', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                credential: response.credential
+            })
+        });
+
+        const data = await result.json();
+
+        if (data.success) {
+            window.location.href = data.redirect;
+        } else {
+            alert('Login failed: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed. Please try again.');
+    }
+}
+</script>
 {% endblock %}

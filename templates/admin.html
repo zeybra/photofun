@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Photo Challenge{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2>🔧 Admin Panel</h2>
+    <p>Welcome, admin! Manage allowed users here.</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Add New User -->
+    <div class="admin-section">
+        <h3>➕ Add Allowed User</h3>
+        <form method="POST" action="{{ url_for('add_allowed_email') }}" class="add-user-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="form-group">
+                <input type="email" name="email" placeholder="user@gmail.com" required>
+                <button type="submit">Add User</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Current Allowed Users -->
+    <div class="admin-section">
+        <h3>✅ Allowed Users ({{ allowed_emails|length }})</h3>
+        {% if allowed_emails %}
+            <div class="allowed-emails-list">
+                {% for email_doc in allowed_emails %}
+                <div class="email-item">
+                    <div class="email-info">
+                        <strong>{{ email_doc.email }}</strong>
+                        {% if email_doc.email == 'johan.kire@gmail.com' %}
+                            <span class="admin-badge">ADMIN</span>
+                        {% endif %}
+                        <br>
+                        <small>Added by {{ email_doc.added_by }} on {{ email_doc.added_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                    {% if email_doc.email != 'johan.kire@gmail.com' %}
+                    <form method="POST" action="{{ url_for('remove_allowed_email') }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <input type="hidden" name="email" value="{{ email_doc.email }}">
+                        <button type="submit" class="remove-btn" onclick="return confirm('Remove {{ email_doc.email }}?')">Remove</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No allowed users found.</p>
+        {% endif %}
+    </div>
+
+    <!-- Challenge Management -->
+    <div class="admin-section">
+        <h3>🎯 Manage Challenge Sets</h3>
+        <p>Edit challenge themes for photo adventures:</p>
+        <div class="challenge-sets">
+            {% for set_key, set_name in challenge_sets.items() %}
+            <div class="challenge-set-item">
+                <strong>{{ set_name }}</strong>
+                <a href="{{ url_for('admin_challenges', challenge_set=set_key) }}" class="btn btn-small">Edit Challenges</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Session Management -->
+    <div class="admin-section">
+        <h3>📊 Active Sessions</h3>
+        <p>Download original photos from completed adventures:</p>
+        <div class="session-list">
+            <!-- This would list active sessions - for now, users can navigate via session URLs -->
+            <p><em>Navigate to any session and use the admin download feature, or access via:</em></p>
+            <code>/admin/download-originals/SESSION_ID</code>
+        </div>
+    </div>
+
+    <!-- Current Registered Users -->
+    <div class="admin-section">
+        <h3>👥 Registered Users ({{ users|length }})</h3>
+        {% if users %}
+            <div class="users-list">
+                {% for user in users %}
+                <div class="user-item">
+                    <strong>{{ user.name }}</strong> ({{ user.email }})
+                    <br>
+                    <small>Joined {{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No users have registered yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('home') }}" class="btn btn-secondary">Back to Home</a>
+    </div>
+</div>
+
+<style>
+.admin-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.admin-section {
+    margin-bottom: 30px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background: #f9f9f9;
+}
+
+.add-user-form .form-group {
+    display: flex;
+    gap: 10px;
+}
+
+.add-user-form input[type="email"] {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.add-user-form button {
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.email-item, .user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.admin-badge {
+    background: #28a745;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
+.remove-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.remove-btn:hover {
+    background: #c82333;
+}
+
+.admin-actions {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.challenge-set-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.9em;
+    background: #28a745;
+    color: white;
+    text-decoration: none;
+    border-radius: 3px;
+}
+
+.btn-small:hover {
+    background: #218838;
+}
+</style>
+{% endblock %}

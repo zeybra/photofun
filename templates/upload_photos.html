@@ -17,6 +17,7 @@
     </div>
     
     <form method="POST" enctype="multipart/form-data" class="upload-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="file-upload-area">
             <input type="file" id="photos" name="photos" multiple accept="image/*" required>
             <label for="photos" class="file-upload-label">
