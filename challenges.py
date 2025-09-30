@@ -143,6 +143,53 @@ CHALLENGE_SETS = {
         ]
     },
 
+    'hemkop': {
+        'name': 'Hemköp Adventure',
+        'description': 'Explore the grocery store with fresh eyes',
+        'challenges': [
+            {
+                "title": "Fresh Salad",
+                "description": "Find the freshest, most colorful salad greens"
+            },
+            {
+                "title": "Colorful Fruit",
+                "description": "Capture the most vibrant, eye-catching fruit display"
+            },
+            {
+                "title": "Something Warm",
+                "description": "Find something warm and cozy (fresh bread, hot food, etc.)"
+            },
+            {
+                "title": "A Fish",
+                "description": "Capture something from the fish counter"
+            },
+            {
+                "title": "Swedish Classic",
+                "description": "Find a classic Swedish food item"
+            },
+            {
+                "title": "Breakfast Inspiration",
+                "description": "Create the perfect breakfast scene"
+            },
+            {
+                "title": "Something Red",
+                "description": "Find the reddest item in the store"
+            },
+            {
+                "title": "Fancy Display",
+                "description": "Capture the most artistic product display"
+            },
+            {
+                "title": "Mysterious Ingredient",
+                "description": "Find an ingredient you've never tried before"
+            },
+            {
+                "title": "Shopping Victory",
+                "description": "Your best find or most creative shot from today"
+            }
+        ]
+    },
+
     'generic': {
         'name': 'Urban Explorer',
         'description': 'Discover any city like a local',

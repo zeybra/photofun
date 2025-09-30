@@ -128,7 +128,18 @@ def after_request(response):
 def home():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return render_template('home.html')
+
+    # Get user's sessions (where they are a participant)
+    user_id = session['user_id']
+    user_sessions = list(mongo.db.sessions.find(
+        {'participants': user_id}
+    ).sort('created_at', -1))
+
+    # Add session IDs as strings for template
+    for sess in user_sessions:
+        sess['id'] = str(sess['_id'])
+
+    return render_template('home.html', sessions=user_sessions)
 
 # Google OAuth routes
 @app.route('/login')
@@ -377,30 +388,40 @@ def create_session():
             return render_template('create_session.html')
 
         start_time = datetime.now()  # Start immediately for now
+
+        # Get number of challenges and interval
         try:
-            duration_hours = int(request.form.get('duration_hours', 8))
-            if duration_hours < 1 or duration_hours > 24:
-                duration_hours = 8
+            number_of_challenges = int(request.form.get('number_of_challenges', 10))
+            if number_of_challenges < 1 or number_of_challenges > 10:
+                number_of_challenges = 10
         except ValueError:
-            duration_hours = 8
-        
+            number_of_challenges = 10
+
+        try:
+            interval_minutes = int(request.form.get('interval_minutes', 60))
+            if interval_minutes < 1 or interval_minutes > 1440:  # Max 24 hours
+                interval_minutes = 60
+        except ValueError:
+            interval_minutes = 60
+
         # Create session in MongoDB
         session_doc = {
             'name': session_name,
             'start_time': start_time,
-            'duration_hours': duration_hours,
+            'number_of_challenges': number_of_challenges,
+            'interval_minutes': interval_minutes,
             'created_by': session['user_id'],
             'created_by_name': session['username'],
             'created_at': datetime.now(),
             'participants': [session['user_id']]
         }
-        
+
         result = mongo.db.sessions.insert_one(session_doc)
         session_id = str(result.inserted_id)
-        
+
         # Create challenges for this session
         challenge_set = request.form.get('challenge_set', 'prague')
-        create_challenges_for_session(session_id, challenge_set, duration_hours)
+        create_challenges_for_session(session_id, challenge_set, number_of_challenges)
         
         flash(f'Adventure "{session_name}" created successfully!')
         return redirect(url_for('session_view', session_id=session_id))
@@ -413,31 +434,67 @@ def join_session():
         return redirect(url_for('login'))
     return render_template('join_session.html')
 
+@app.route('/session/<session_id>/delete', methods=['POST'])
+def delete_session(session_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    # Get session from database
+    session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
+    if not session_doc:
+        return jsonify({'error': 'Adventure not found'}), 404
+
+    # Check if user is the creator
+    if session_doc['created_by'] != session['user_id']:
+        return jsonify({'error': 'Only the creator can delete this adventure'}), 403
+
+    # Delete all challenges for this session
+    mongo.db.challenges.delete_many({'session_id': session_id})
+
+    # Delete all photos for this session
+    mongo.db.photos.delete_many({'session_id': session_id})
+
+    # Delete the session
+    mongo.db.sessions.delete_one({'_id': ObjectId(session_id)})
+
+    return jsonify({'success': True})
+
 @app.route('/session/<session_id>')
 def session_view(session_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get session from database
     session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
     if not session_doc:
         flash('Adventure not found!')
         return redirect(url_for('home'))
-    
-    # Calculate current challenge
+
+    # Add user to participants if not already there
+    current_user_id = session['user_id']
+    participants = session_doc.get('participants', [])
+    if current_user_id not in participants:
+        mongo.db.sessions.update_one(
+            {'_id': ObjectId(session_id)},
+            {'$addToSet': {'participants': current_user_id}}
+        )
+        flash(f'You joined the adventure: {session_doc["name"]}!')
+
+    # Calculate current challenge based on interval
     start_time = session_doc['start_time']
     current_time = datetime.now()
-    hours_elapsed = (current_time - start_time).total_seconds() / 3600
-    current_challenge_hour = int(hours_elapsed) + 1
+    interval_minutes = session_doc.get('interval_minutes', 60)
+    minutes_elapsed = (current_time - start_time).total_seconds() / 60
+    current_challenge_number = int(minutes_elapsed / interval_minutes) + 1
 
     # Get only current and past challenges (hide future ones for suspense!)
     all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
-    visible_challenges = [c for c in all_challenges if c['hour'] <= current_challenge_hour]
+    visible_challenges = [c for c in all_challenges if c['hour'] <= current_challenge_number]
 
     return render_template('session_view.html',
                          session=session_doc,
                          challenges=visible_challenges,
-                         current_challenge_hour=current_challenge_hour,
+                         current_challenge_hour=current_challenge_number,
                          total_challenges=len(all_challenges),
                          session_id=session_id)
 
