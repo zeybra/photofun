@@ -563,6 +563,7 @@ def categorize_photos(session_id):
                          session_id=session_id)
 
 @app.route('/assign-photo', methods=['POST'])
+@csrf.exempt 
 def assign_photo():
     photo_id = request.form['photo_id']
     challenge_id = request.form['challenge_id']
@@ -605,6 +606,7 @@ def compare_photos(session_id):
                          session_id=session_id)
 
 @app.route('/vote', methods=['POST'])
+@csrf.exempt 
 def vote_photo():
     photo_id = request.form['photo_id']
     rating = int(request.form['rating'])
