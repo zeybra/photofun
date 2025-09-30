@@ -741,4 +741,6 @@ def send_notification_to_session(session_id, title, body, exclude_user_id=None):
         print(f"Session notification failed: {ex}")
 
 if __name__ == '__main__':
-    app.run(debug=True, host="localhost", port=8080, threaded=True)
+    port = int(os.environ.get('PORT', 8080))
+    #app.run(debug=True, host="localhost", port=8080, threaded=True)
+    app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
