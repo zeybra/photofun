@@ -474,6 +474,9 @@ def upload_photos(session_id):
                         resource_type="image"
                     )
 
+                    # CRITICAL: Reset file stream to beginning
+                    file.seek(0)
+
                     # Upload display version (optimized for web)
                     display_result = cloudinary.uploader.upload(
                         file,
@@ -485,7 +488,6 @@ def upload_photos(session_id):
                             {'quality': 'auto:good'}
                         ]
                     )
-
                     # Save to database with both URLs
                     photo_doc = {
                         'session_id': session_id,
