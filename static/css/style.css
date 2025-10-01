@@ -47,12 +47,16 @@ nav {
 }
 
 nav h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+nav h1 a {
     background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    font-size: 1.5rem;
-    font-weight: 700;
 }
 
 .nav-user {

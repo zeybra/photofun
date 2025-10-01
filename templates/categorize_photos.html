@@ -34,8 +34,8 @@
                                 </label>
                             {% endfor %}
                         </div>
-                        <button class="btn-delete" onclick="deletePhoto('{{ photo._id }}', this)">
-                            🗑️ Delete Photo
+                        <button class="btn-delete-photo" onclick="deletePhoto('{{ photo._id }}', this)">
+                            🗑️ Delete
                         </button>
                     </div>
                 </div>
@@ -179,27 +179,26 @@
     display: block;
 }
 
-.btn-delete {
-    margin-top: 20px;
-    padding: 8px 16px;
+.btn-delete-photo {
+    margin-top: 15px;
+    padding: 6px 12px;
     background: transparent;
     color: var(--text-light);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.3s;
+    font-size: 12px;
+    font-weight: 400;
+    transition: all 0.2s;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
-.btn-delete:hover {
+.btn-delete-photo:hover {
     background: var(--danger);
     color: white;
     border-color: var(--danger);
-    transform: translateY(-2px);
 }
 
 .categorize-actions {
@@ -275,14 +274,14 @@ function deletePhoto(photoId, button) {
         } else {
             alert('Failed to delete photo: ' + (data.error || 'Unknown error'));
             button.disabled = false;
-            button.textContent = '🗑️ Delete Photo';
+            button.textContent = '🗑️ Delete';
         }
     })
     .catch(error => {
         console.error('Error:', error);
         alert('Failed to delete photo. Please try again.');
         button.disabled = false;
-        button.textContent = '🗑️ Delete Photo';
+        button.textContent = '🗑️ Delete';
     });
 }
 </script>
