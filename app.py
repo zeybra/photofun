@@ -625,6 +625,9 @@ def categorize_photos(session_id):
             # No challenge_ids field at all
             photo['challenge_ids'] = []
 
+    # Sort photos: unassigned first, then assigned
+    photos.sort(key=lambda p: len(p.get('challenge_ids', [])) > 0)
+
     session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
 
     # Get only available challenges (current and past)
