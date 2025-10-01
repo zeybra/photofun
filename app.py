@@ -554,7 +554,7 @@ def upload_photos(session_id):
                         'url': display_result['secure_url'],           # Optimized for display
                         'original_url': original_result['secure_url'], # Full quality original
                         'original_filename': secure_filename(file.filename),
-                        'challenge_id': None,  # Will be assigned later
+                        'challenge_ids': [],  # Can be assigned to multiple challenges
                         'uploaded_at': datetime.now()
                     }
                     mongo.db.photos.insert_one(photo_doc)
@@ -595,24 +595,40 @@ def upload_photos(session_id):
 def categorize_photos(session_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
-    # Get uncategorized photos for current user
+
+    # Get all photos for current user (we show all now, with checkmarks for assigned)
     photos = list(mongo.db.photos.find({
         'session_id': session_id,
-        'uploader_id': session['user_id'],
-        'challenge_id': None
+        'uploader_id': session['user_id']
     }))
-    
+
+    # Migrate old photos to new schema if needed
+    for photo in photos:
+        if 'challenge_id' in photo and photo['challenge_id'] is not None:
+            # Old schema: single challenge_id
+            mongo.db.photos.update_one(
+                {'_id': photo['_id']},
+                {
+                    '$set': {'challenge_ids': [photo['challenge_id']]},
+                    '$unset': {'challenge_id': ''}
+                }
+            )
+            photo['challenge_ids'] = [photo['challenge_id']]
+        elif 'challenge_ids' not in photo:
+            # No challenge_ids field at all
+            photo['challenge_ids'] = []
+
     session_doc = mongo.db.sessions.find_one({'_id': ObjectId(session_id)})
 
     # Get only available challenges (current and past)
     start_time = session_doc['start_time']
-    hours_elapsed = (datetime.now() - start_time).total_seconds() / 3600
-    current_challenge_hour = int(hours_elapsed) + 1
+    interval_minutes = session_doc.get('interval_minutes', 60)
+    minutes_elapsed = (datetime.now() - start_time).total_seconds() / 60
+    current_challenge_number = int(minutes_elapsed / interval_minutes) + 1
 
     all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
-    challenges = [c for c in all_challenges if c['hour'] <= current_challenge_hour]
-    
+    challenges = [c for c in all_challenges if c['hour'] <= current_challenge_number]
+
     return render_template('categorize_photos.html',
                          photos=photos,
                          challenges=challenges,
@@ -620,17 +636,49 @@ def categorize_photos(session_id):
                          session_id=session_id)
 
 @app.route('/assign-photo', methods=['POST'])
-@csrf.exempt 
+@csrf.exempt
 def assign_photo():
     photo_id = request.form['photo_id']
     challenge_id = request.form['challenge_id']
-    
+    action = request.form.get('action', 'toggle')  # 'toggle', 'add', or 'remove'
+
+    photo = mongo.db.photos.find_one({'_id': ObjectId(photo_id)})
+    if not photo:
+        return jsonify({'error': 'Photo not found'}), 404
+
+    # Get current challenge_ids (handle old schema)
+    if 'challenge_ids' in photo:
+        challenge_ids = photo['challenge_ids']
+    elif 'challenge_id' in photo and photo['challenge_id']:
+        challenge_ids = [photo['challenge_id']]
+    else:
+        challenge_ids = []
+
+    # Toggle or add/remove challenge
+    if action == 'toggle':
+        if challenge_id in challenge_ids:
+            challenge_ids.remove(challenge_id)
+        else:
+            challenge_ids.append(challenge_id)
+    elif action == 'add' and challenge_id not in challenge_ids:
+        challenge_ids.append(challenge_id)
+    elif action == 'remove' and challenge_id in challenge_ids:
+        challenge_ids.remove(challenge_id)
+
+    # Update database
     mongo.db.photos.update_one(
         {'_id': ObjectId(photo_id)},
-        {'$set': {'challenge_id': challenge_id}}
+        {
+            '$set': {'challenge_ids': challenge_ids},
+            '$unset': {'challenge_id': ''}  # Remove old field if present
+        }
     )
-    
-    return jsonify({'success': True})
+
+    return jsonify({
+        'success': True,
+        'challenge_ids': challenge_ids,
+        'is_assigned': challenge_id in challenge_ids
+    })
 
 # Add this route after your existing routes
 
@@ -650,11 +698,20 @@ def compare_photos(session_id):
     # Get all photos for this session, grouped by challenge
     challenge_photos = {}
     for challenge in challenges:
+        challenge_id_str = str(challenge['_id'])
+        # Find photos that have this challenge in their challenge_ids array
         photos = list(mongo.db.photos.find({
             'session_id': session_id,
-            'challenge_id': str(challenge['_id'])
+            'challenge_ids': challenge_id_str
         }))
-        challenge_photos[str(challenge['_id'])] = photos
+        # Also check for old schema photos
+        old_photos = list(mongo.db.photos.find({
+            'session_id': session_id,
+            'challenge_id': challenge_id_str
+        }))
+        # Combine and deduplicate
+        all_photos = {str(p['_id']): p for p in photos + old_photos}
+        challenge_photos[challenge_id_str] = list(all_photos.values())
     
     return render_template('compare_photos.html',
                          session=session_doc,
@@ -707,21 +764,31 @@ def session_results(session_id):
     # Get photos with their vote statistics
     results = {}
     for challenge in challenges:
+        challenge_id_str = str(challenge['_id'])
+        # Find photos that have this challenge in their challenge_ids array
         photos = list(mongo.db.photos.find({
             'session_id': session_id,
-            'challenge_id': str(challenge['_id'])
+            'challenge_ids': challenge_id_str
         }))
-        
+        # Also check for old schema photos
+        old_photos = list(mongo.db.photos.find({
+            'session_id': session_id,
+            'challenge_id': challenge_id_str
+        }))
+        # Combine and deduplicate
+        all_photos_dict = {str(p['_id']): p for p in photos + old_photos}
+        photos = list(all_photos_dict.values())
+
         # Add vote stats to each photo
         for photo in photos:
             votes = list(mongo.db.votes.find({'photo_id': str(photo['_id'])}))
             photo['avg_rating'] = sum(vote['rating'] for vote in votes) / len(votes) if votes else 0
             photo['total_votes'] = len(votes)
             photo['votes'] = votes
-        
+
         # Sort photos by rating
         photos.sort(key=lambda x: x['avg_rating'], reverse=True)
-        results[str(challenge['_id'])] = photos
+        results[challenge_id_str] = photos
     
     return render_template('session_results.html',
                          session=session_doc,

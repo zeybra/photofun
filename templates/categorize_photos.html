@@ -5,101 +5,169 @@
 {% block content %}
 <div class="categorize-container">
     <h2>🏷️ Categorize Your Photos</h2>
-    <p class="categorize-info">Assign each photo to its challenge</p>
+    <p class="categorize-info">Check off which challenges each photo fits (can select multiple)</p>
     
     {% if photos %}
         <div class="categorize-grid">
             {% for photo in photos %}
                 <div class="photo-card" data-photo-id="{{ photo._id }}">
                     <div class="photo-preview">
-                        <img src="{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}" 
+                        <img src="{{ photo.url if photo.url else url_for('static', filename='uploads/' + photo.filename) }}"
                              alt="Photo" class="photo-img">
                     </div>
-                    
+
                     <div class="photo-controls">
-                        <select class="challenge-select" data-photo-id="{{ photo._id }}">
-                            <option value="">Select Challenge...</option>
+                        <div class="challenges-list">
                             {% for challenge in challenges %}
-                                <option value="{{ challenge._id }}">
-                                    {{ challenge.hour }}. {{ challenge.title }}
-                                </option>
+                                {% set challenge_id = challenge._id|string %}
+                                {% set is_assigned = challenge_id in (photo.challenge_ids or []) %}
+                                <label class="challenge-checkbox-label {% if is_assigned %}assigned{% endif %}"
+                                       data-challenge-id="{{ challenge_id }}">
+                                    <input type="checkbox"
+                                           class="challenge-checkbox"
+                                           data-photo-id="{{ photo._id }}"
+                                           data-challenge-id="{{ challenge_id }}"
+                                           {% if is_assigned %}checked{% endif %}
+                                           onchange="toggleChallenge('{{ photo._id }}', '{{ challenge_id }}', this)">
+                                    <span class="checkmark">{% if is_assigned %}✓{% endif %}</span>
+                                    <span class="challenge-text">{{ challenge.hour }}. {{ challenge.title }}</span>
+                                </label>
                             {% endfor %}
-                        </select>
-                        <button class="assign-btn btn btn-small" disabled 
-                                onclick="assignPhoto('{{ photo._id }}', this)">
-                            Assign
-                        </button>
+                        </div>
                     </div>
                 </div>
             {% endfor %}
         </div>
-        
+
         <div class="categorize-actions">
-            <button id="finish-btn" class="btn btn-primary" style="display: none;">
-                Finish Categorizing
-            </button>
-            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
-                Back to Adventure
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-primary">
+                Done
             </a>
         </div>
     {% else %}
         <div class="no-photos">
-            <p>No photos to categorize! All your photos have been assigned.</p>
-            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-primary">
+            <p>No photos uploaded yet!</p>
+            <a href="{{ url_for('upload_photos', session_id=session_id) }}" class="btn btn-primary">
+                Upload Photos
+            </a>
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
                 Back to Adventure
             </a>
         </div>
     {% endif %}
 </div>
 
-<script>
-// Enable assign button when challenge is selected
-document.querySelectorAll('.challenge-select').forEach(select => {
-    select.addEventListener('change', function() {
-        const photoId = this.dataset.photoId;
-        const assignBtn = this.parentElement.querySelector('.assign-btn');
-        assignBtn.disabled = !this.value;
-    });
-});
+<style>
+.challenges-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 
-function assignPhoto(photoId, button) {
-    const select = button.parentElement.querySelector('.challenge-select');
-    const challengeId = select.value;
-    
-    if (!challengeId) return;
-    
+.challenge-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.challenge-checkbox-label:hover {
+    border-color: #4CAF50;
+    background: #f9f9f9;
+}
+
+.challenge-checkbox-label.assigned {
+    border-color: #4CAF50;
+    background: #e8f5e9;
+}
+
+.challenge-checkbox {
+    display: none;
+}
+
+.checkmark {
+    min-width: 24px;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    color: #4CAF50;
+    transition: all 0.2s;
+}
+
+.challenge-checkbox-label.assigned .checkmark {
+    border-color: #4CAF50;
+    background: #4CAF50;
+    color: white;
+}
+
+.challenge-text {
+    flex: 1;
+    font-size: 14px;
+}
+
+.photo-card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.photo-preview {
+    margin-bottom: 15px;
+}
+
+.photo-img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+</style>
+
+<script>
+function toggleChallenge(photoId, challengeId, checkbox) {
+    const label = checkbox.closest('.challenge-checkbox-label');
+    const checkmark = label.querySelector('.checkmark');
+
     fetch('/assign-photo', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `photo_id=${photoId}&challenge_id=${challengeId}`
+        body: `photo_id=${photoId}&challenge_id=${challengeId}&action=toggle`
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Remove this photo card
-            const photoCard = button.closest('.photo-card');
-            photoCard.style.animation = 'fadeOut 0.3s';
-            setTimeout(() => {
-                photoCard.remove();
-                checkIfAllAssigned();
-            }, 300);
+            // Update UI based on response
+            if (data.is_assigned) {
+                label.classList.add('assigned');
+                checkmark.textContent = '✓';
+            } else {
+                label.classList.remove('assigned');
+                checkmark.textContent = '';
+            }
+        } else {
+            // Revert checkbox state on error
+            checkbox.checked = !checkbox.checked;
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Revert checkbox state on error
+        checkbox.checked = !checkbox.checked;
     });
 }
-
-function checkIfAllAssigned() {
-    const remainingPhotos = document.querySelectorAll('.photo-card').length;
-    if (remainingPhotos === 0) {
-        document.getElementById('finish-btn').style.display = 'block';
-        document.querySelector('.categorize-grid').innerHTML = 
-            '<div class="all-done"><h3>🎉 All photos categorized!</h3></div>';
-    }
-}
-
-document.getElementById('finish-btn')?.addEventListener('click', function() {
-    window.location.href = "{{ url_for('session_view', session_id=session_id) }}";
-});
 </script>
 {% endblock %}
