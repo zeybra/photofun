@@ -38,6 +38,9 @@
             <button type="submit" class="btn btn-primary" id="upload-btn" disabled>
                 Upload Photos
             </button>
+            <a href="{{ url_for('categorize_photos', session_id=session_id) }}" class="btn btn-secondary">
+                Assign Photos to Challenges
+            </a>
             <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-secondary">
                 Back to Adventure
             </a>

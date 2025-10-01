@@ -34,6 +34,9 @@
                                 </label>
                             {% endfor %}
                         </div>
+                        <button class="btn-delete" onclick="deletePhoto('{{ photo._id }}', this)">
+                            🗑️ Delete Photo
+                        </button>
                     </div>
                 </div>
             {% endfor %}
@@ -133,6 +136,24 @@
     height: auto;
     border-radius: 8px;
 }
+
+.btn-delete {
+    width: 100%;
+    margin-top: 15px;
+    padding: 10px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-delete:hover {
+    background: #d32f2f;
+}
 </style>
 
 <script>
@@ -167,6 +188,49 @@ function toggleChallenge(photoId, challengeId, checkbox) {
         console.error('Error:', error);
         // Revert checkbox state on error
         checkbox.checked = !checkbox.checked;
+    });
+}
+
+function deletePhoto(photoId, button) {
+    if (!confirm('Are you sure you want to delete this photo? This cannot be undone.')) {
+        return;
+    }
+
+    const photoCard = button.closest('.photo-card');
+    button.disabled = true;
+    button.textContent = 'Deleting...';
+
+    fetch(`/photo/${photoId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Fade out and remove the photo card
+            photoCard.style.opacity = '0';
+            photoCard.style.transition = 'opacity 0.3s';
+            setTimeout(() => {
+                photoCard.remove();
+                // Check if there are no more photos
+                const remainingPhotos = document.querySelectorAll('.photo-card');
+                if (remainingPhotos.length === 0) {
+                    location.reload(); // Reload to show "no photos" message
+                }
+            }, 300);
+        } else {
+            alert('Failed to delete photo: ' + (data.error || 'Unknown error'));
+            button.disabled = false;
+            button.textContent = '🗑️ Delete Photo';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to delete photo. Please try again.');
+        button.disabled = false;
+        button.textContent = '🗑️ Delete Photo';
     });
 }
 </script>

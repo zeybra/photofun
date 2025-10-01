@@ -680,6 +680,56 @@ def assign_photo():
         'is_assigned': challenge_id in challenge_ids
     })
 
+@app.route('/photo/<photo_id>/delete', methods=['POST'])
+@csrf.exempt
+def delete_photo(photo_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    photo = mongo.db.photos.find_one({'_id': ObjectId(photo_id)})
+    if not photo:
+        return jsonify({'error': 'Photo not found'}), 404
+
+    # Check if user owns this photo
+    if photo['uploader_id'] != session['user_id']:
+        return jsonify({'error': 'You can only delete your own photos'}), 403
+
+    # Delete from Cloudinary if URL exists
+    if 'url' in photo:
+        try:
+            # Extract public_id from URL
+            # Cloudinary URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
+            url_parts = photo['url'].split('/')
+            if 'photofun' in url_parts:
+                # Get the public_id part (everything after upload/)
+                upload_index = url_parts.index('upload')
+                public_id_with_ext = '/'.join(url_parts[upload_index + 2:])  # Skip version number
+                public_id = public_id_with_ext.rsplit('.', 1)[0]  # Remove extension
+                cloudinary.uploader.destroy(public_id)
+        except Exception as e:
+            print(f"Failed to delete from Cloudinary: {e}")
+            # Continue anyway to delete from database
+
+    # Delete original from Cloudinary if it exists
+    if 'original_url' in photo:
+        try:
+            url_parts = photo['original_url'].split('/')
+            if 'photofun' in url_parts:
+                upload_index = url_parts.index('upload')
+                public_id_with_ext = '/'.join(url_parts[upload_index + 2:])
+                public_id = public_id_with_ext.rsplit('.', 1)[0]
+                cloudinary.uploader.destroy(public_id)
+        except Exception as e:
+            print(f"Failed to delete original from Cloudinary: {e}")
+
+    # Delete associated votes
+    mongo.db.votes.delete_many({'photo_id': photo_id})
+
+    # Delete photo from database
+    mongo.db.photos.delete_one({'_id': ObjectId(photo_id)})
+
+    return jsonify({'success': True})
+
 # Add this route after your existing routes
 
 @app.route('/session/<session_id>/compare')
