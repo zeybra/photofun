@@ -61,33 +61,64 @@
 </div>
 
 <style>
+.categorize-container {
+    background: var(--bg-white);
+    padding: 2.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+}
+
+.categorize-container h2 {
+    font-size: 2rem;
+    background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1rem;
+}
+
+.categorize-info {
+    color: var(--text-light);
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+}
+
+.categorize-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
 .challenges-list {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .challenge-checkbox-label {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border: 2px solid #ddd;
-    border-radius: 8px;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: white;
 }
 
 .challenge-checkbox-label:hover {
-    border-color: #4CAF50;
-    background: #f9f9f9;
+    border-color: var(--success);
+    background: #f0fdf4;
+    transform: translateX(4px);
 }
 
 .challenge-checkbox-label.assigned {
-    border-color: #4CAF50;
-    background: #e8f5e9;
+    border-color: var(--success);
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    box-shadow: var(--shadow-sm);
 }
 
 .challenge-checkbox {
@@ -95,64 +126,85 @@
 }
 
 .checkmark {
-    min-width: 24px;
-    width: 24px;
-    height: 24px;
-    border: 2px solid #ddd;
-    border-radius: 4px;
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 18px;
     font-weight: bold;
-    color: #4CAF50;
-    transition: all 0.2s;
+    color: var(--success);
+    transition: all 0.3s;
 }
 
 .challenge-checkbox-label.assigned .checkmark {
-    border-color: #4CAF50;
-    background: #4CAF50;
+    border-color: var(--success);
+    background: var(--success);
     color: white;
 }
 
 .challenge-text {
     flex: 1;
-    font-size: 14px;
+    font-size: 15px;
+    color: var(--text-dark);
+    font-weight: 500;
 }
 
 .photo-card {
-    background: white;
-    border-radius: 12px;
-    padding: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.3s ease;
+}
+
+.photo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
 }
 
 .photo-preview {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
 }
 
 .photo-img {
     width: 100%;
     height: auto;
-    border-radius: 8px;
+    display: block;
 }
 
 .btn-delete {
-    width: 100%;
-    margin-top: 15px;
-    padding: 10px;
-    background: #f44336;
-    color: white;
-    border: none;
-    border-radius: 8px;
+    margin-top: 20px;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--text-light);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
-    transition: background 0.2s;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .btn-delete:hover {
-    background: #d32f2f;
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+    transform: translateY(-2px);
+}
+
+.categorize-actions {
+    text-align: center;
+    margin-top: 3rem;
 }
 </style>
 

@@ -491,12 +491,19 @@ def session_view(session_id):
     all_challenges = list(mongo.db.challenges.find({'session_id': session_id}).sort('hour', 1))
     visible_challenges = [c for c in all_challenges if c['hour'] <= current_challenge_number]
 
+    # Check if user has uploaded any photos
+    user_has_photos = mongo.db.photos.count_documents({
+        'session_id': session_id,
+        'uploader_id': current_user_id
+    }) > 0
+
     return render_template('session_view.html',
                          session=session_doc,
                          challenges=visible_challenges,
                          current_challenge_hour=current_challenge_number,
                          total_challenges=len(all_challenges),
-                         session_id=session_id)
+                         session_id=session_id,
+                         user_has_photos=user_has_photos)
 
 @app.route('/session/<session_id>/upload', methods=['GET', 'POST'])
 def upload_photos(session_id):
